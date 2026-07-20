@@ -62,16 +62,18 @@ def asociar_multimodal(df_fusionado, num_muestras=None):
     Asocia correctamente cada imagen con la información textual correspondiente.
     """
     if num_muestras:
-        df_fusionado = df_fusionado.head(num_muestras)
+     df_fusionado = df_fusionado.sample(n=min(num_muestras, len(df_fusionado)), random_state=42)
 
     datos_estructurados = []
     print(f"Descargando y asociando {len(df_fusionado)} muestras...")
 
     for _, fila in df_fusionado.iterrows():
         # Combinamos título y descripción para tener un contexto enriquecido para el RAG
-        texto_crudo = (
-            f"{fila.get('product_title', '')}. {fila.get('product_description', '')}"
-        )
+        descripcion = fila.get('product_description', '')
+        if pd.isna(descripcion):
+         descripcion = ''
+        texto_crudo = f"{fila.get('product_title', '')}. {descripcion}"
+
         texto_limpio = procesar_texto(texto_crudo)
 
         imagen_pil = descargar_imagen(fila["image_url"])
