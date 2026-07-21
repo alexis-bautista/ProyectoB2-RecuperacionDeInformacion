@@ -9,18 +9,6 @@ Responsabilidades:
   - Almacenar las representaciones vectoriales (índice FAISS + metadatos)
     para su recuperación posterior.
 
-Pensado para ser importado desde Proyecto.ipynb:
-
-    from construir_embeddings import ConstructorEmbeddings
-
-    constructor = ConstructorEmbeddings()
-    constructor.construir_base_vectorial(datos_estructurados)
-    constructor.guardar("vector_store")
-
-    # más tarde, en otra sesión:
-    constructor = ConstructorEmbeddings()
-    constructor.cargar("vector_store")
-    resultados = constructor.buscar("zapatillas rojas de running", top_k=5)
 """
 
 import os
@@ -39,7 +27,9 @@ except ImportError:
 
 
 class ConstructorEmbeddings:
-    def __init__(self, modelo_nombre: str = "openai/clip-vit-base-patch32", device: str = None):
+    def __init__(
+        self, modelo_nombre: str = "openai/clip-vit-base-patch32", device: str = None
+    ):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Cargando modelo CLIP '{modelo_nombre}' en {self.device}...")
         self.modelo = CLIPModel.from_pretrained(modelo_nombre).to(self.device)
@@ -58,12 +48,19 @@ class ConstructorEmbeddings:
         (ej. BaseModelOutputWithPooling) que contiene el tensor adentro."""
         if torch.is_tensor(salida):
             return salida
-        for atributo in ("pooler_output", "text_embeds", "image_embeds", "last_hidden_state"):
+        for atributo in (
+            "pooler_output",
+            "text_embeds",
+            "image_embeds",
+            "last_hidden_state",
+        ):
             if hasattr(salida, atributo):
                 valor = getattr(salida, atributo)
                 if valor is not None:
                     return valor
-        raise TypeError(f"No se pudo extraer el tensor de embeddings de: {type(salida)}")
+        raise TypeError(
+            f"No se pudo extraer el tensor de embeddings de: {type(salida)}"
+        )
 
     @torch.no_grad()
     def generar_embeddings_texto(self, textos: List[str]) -> np.ndarray:
@@ -91,7 +88,9 @@ class ConstructorEmbeddings:
 
     # ---------- Generación de la matriz de embeddings del corpus ----------
 
-    def generar_matriz_corpus(self, datos_estructurados: List[Dict], batch_size: int = 16):
+    def generar_matriz_corpus(
+        self, datos_estructurados: List[Dict], batch_size: int = 16
+    ):
         """
         Recorre el corpus (lista de dicts con 'product_id', 'texto', 'imagen',
         tal como los entrega preparar_corpus.asociar_multimodal) y genera un
@@ -107,7 +106,7 @@ class ConstructorEmbeddings:
         print(f"Generando embeddings para {total} documentos...")
 
         for inicio in range(0, total, batch_size):
-            lote = datos_estructurados[inicio: inicio + batch_size]
+            lote = datos_estructurados[inicio : inicio + batch_size]
             textos = [d["texto"] for d in lote]
             imagenes = [d["imagen"] for d in lote]
 
@@ -115,11 +114,19 @@ class ConstructorEmbeddings:
             emb_imagen = self.generar_embeddings_imagen(imagenes)
 
             emb_multimodal = (emb_texto + emb_imagen) / 2.0
-            emb_multimodal = emb_multimodal / np.linalg.norm(emb_multimodal, axis=1, keepdims=True)
+            emb_multimodal = emb_multimodal / np.linalg.norm(
+                emb_multimodal, axis=1, keepdims=True
+            )
             vectores.append(emb_multimodal)
 
             for d in lote:
-                metadatos.append({"product_id": d["product_id"], "texto": d["texto"]})
+                metadatos.append(
+                    {
+                        "product_id": d["product_id"],
+                        "texto": d["texto"],
+                        "image_url": d.get("image_url", ""),
+                    }
+                )
 
             print(f"  {min(inicio + batch_size, total)}/{total} procesados")
 
@@ -128,7 +135,9 @@ class ConstructorEmbeddings:
 
     # ---------- Construcción del índice (compatibilidad) ----------
 
-    def construir_base_vectorial(self, datos_estructurados: List[Dict], batch_size: int = 16):
+    def construir_base_vectorial(
+        self, datos_estructurados: List[Dict], batch_size: int = 16
+    ):
         """
         [Se mantiene por compatibilidad con notebooks anteriores]
         Genera la matriz de embeddings y construye además un índice FAISS
@@ -139,14 +148,18 @@ class ConstructorEmbeddings:
         if faiss is None:
             raise ImportError("Falta faiss. Instala con: pip install faiss-cpu")
 
-        matriz, self.metadatos = self.generar_matriz_corpus(datos_estructurados, batch_size=batch_size)
+        matriz, self.metadatos = self.generar_matriz_corpus(
+            datos_estructurados, batch_size=batch_size
+        )
         dimension = matriz.shape[1]
 
         # Producto interno == similitud coseno porque los vectores están normalizados
         self.indice_faiss = faiss.IndexFlatIP(dimension)
         self.indice_faiss.add(matriz)
 
-        print(f"Índice FAISS construido: {self.indice_faiss.ntotal} vectores, dimensión {dimension}.")
+        print(
+            f"Índice FAISS construido: {self.indice_faiss.ntotal} vectores, dimensión {dimension}."
+        )
         return self.indice_faiss
 
     # ---------- Persistencia ----------
@@ -154,9 +167,13 @@ class ConstructorEmbeddings:
     def guardar(self, ruta_directorio: str = "vector_store"):
         """Guarda el índice FAISS y los metadatos asociados en disco."""
         if self.indice_faiss is None:
-            raise ValueError("No hay índice para guardar. Ejecuta construir_base_vectorial() primero.")
+            raise ValueError(
+                "No hay índice para guardar. Ejecuta construir_base_vectorial() primero."
+            )
         os.makedirs(ruta_directorio, exist_ok=True)
-        faiss.write_index(self.indice_faiss, os.path.join(ruta_directorio, "indice.faiss"))
+        faiss.write_index(
+            self.indice_faiss, os.path.join(ruta_directorio, "indice.faiss")
+        )
         with open(os.path.join(ruta_directorio, "metadatos.pkl"), "wb") as f:
             pickle.dump(self.metadatos, f)
         print(f"Guardado en '{ruta_directorio}/' (indice.faiss + metadatos.pkl).")
@@ -165,7 +182,9 @@ class ConstructorEmbeddings:
         """Carga un índice FAISS y sus metadatos previamente guardados."""
         if faiss is None:
             raise ImportError("Falta faiss. Instala con: pip install faiss-cpu")
-        self.indice_faiss = faiss.read_index(os.path.join(ruta_directorio, "indice.faiss"))
+        self.indice_faiss = faiss.read_index(
+            os.path.join(ruta_directorio, "indice.faiss")
+        )
         with open(os.path.join(ruta_directorio, "metadatos.pkl"), "rb") as f:
             self.metadatos = pickle.load(f)
         print(f"Índice cargado: {self.indice_faiss.ntotal} vectores.")
@@ -175,7 +194,9 @@ class ConstructorEmbeddings:
     def buscar(self, consulta: str, top_k: int = 5) -> List[Dict]:
         """Dada una consulta de texto, devuelve los top_k documentos más similares."""
         if self.indice_faiss is None:
-            raise ValueError("No hay índice cargado. Usa construir_base_vectorial() o cargar().")
+            raise ValueError(
+                "No hay índice cargado. Usa construir_base_vectorial() o cargar()."
+            )
 
         emb_consulta = self.generar_embedding_consulta(consulta).reshape(1, -1)
         distancias, indices = self.indice_faiss.search(emb_consulta, top_k)

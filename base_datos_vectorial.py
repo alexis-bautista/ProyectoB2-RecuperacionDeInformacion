@@ -17,20 +17,6 @@ normalizados) como motor de indexado. Si se prefiriera ChromaDB en vez
 de FAISS, la interfaz pública (indexar_corpus / recuperar_top_k / guardar
 / cargar) se mantendría igual, cambiando solo la implementación interna.
 
-Pensado para ser importado desde Proyecto.ipynb:
-
-    from construir_embeddings import ConstructorEmbeddings
-    from base_datos_vectorial import BaseDatosVectorial
-
-    constructor = ConstructorEmbeddings()
-    matriz, metadatos = constructor.generar_matriz_corpus(datos_estructurados)
-
-    bd_vectorial = BaseDatosVectorial()
-    bd_vectorial.indexar_corpus(matriz, metadatos)
-    bd_vectorial.guardar("vector_store")
-
-    emb_consulta = constructor.generar_embedding_consulta("zapatillas rojas")
-    ranking = bd_vectorial.recuperar_top_k(emb_consulta, top_k=5)
 """
 
 import os
@@ -62,7 +48,9 @@ class BaseDatosVectorial:
         if faiss is None:
             raise ImportError("Falta faiss. Instala con: pip install faiss-cpu")
         if matriz_embeddings.ndim != 2:
-            raise ValueError("matriz_embeddings debe tener forma [num_documentos, dimension].")
+            raise ValueError(
+                "matriz_embeddings debe tener forma [num_documentos, dimension]."
+            )
         if len(metadatos) != matriz_embeddings.shape[0]:
             raise ValueError(
                 f"Cantidad de metadatos ({len(metadatos)}) no coincide con "
@@ -78,13 +66,17 @@ class BaseDatosVectorial:
         self.indice.add(matriz_embeddings)
         self.metadatos = list(metadatos)
 
-        print(f"Corpus indexado: {self.indice.ntotal} documentos, dimensión {self.dimension}.")
+        print(
+            f"Corpus indexado: {self.indice.ntotal} documentos, dimensión {self.dimension}."
+        )
         return self.indice
 
     def agregar_documentos(self, matriz_embeddings: np.ndarray, metadatos: List[Dict]):
         """Agrega nuevos documentos a un índice ya existente (indexado incremental)."""
         if self.indice is None:
-            raise ValueError("No hay índice creado todavía. Usa indexar_corpus() primero.")
+            raise ValueError(
+                "No hay índice creado todavía. Usa indexar_corpus() primero."
+            )
         matriz_embeddings = np.ascontiguousarray(matriz_embeddings, dtype="float32")
         self.indice.add(matriz_embeddings)
         self.metadatos.extend(metadatos)
@@ -92,7 +84,9 @@ class BaseDatosVectorial:
 
     # ---------- Recuperación / ranking Top-k ----------
 
-    def recuperar_top_k(self, vector_consulta: np.ndarray, top_k: int = 5) -> List[Dict]:
+    def recuperar_top_k(
+        self, vector_consulta: np.ndarray, top_k: int = 5
+    ) -> List[Dict]:
         """
         Dado el embedding de una consulta (ya generado, por ejemplo con
         ConstructorEmbeddings.generar_embedding_consulta), devuelve una
@@ -103,16 +97,24 @@ class BaseDatosVectorial:
         (product_id, texto, etc).
         """
         if self.indice is None:
-            raise ValueError("El índice no ha sido creado. Usa indexar_corpus() o cargar() primero.")
+            raise ValueError(
+                "El índice no ha sido creado. Usa indexar_corpus() o cargar() primero."
+            )
 
-        vector_consulta = np.ascontiguousarray(vector_consulta, dtype="float32").reshape(1, -1)
+        vector_consulta = np.ascontiguousarray(
+            vector_consulta, dtype="float32"
+        ).reshape(1, -1)
         distancias, indices = self.indice.search(vector_consulta, top_k)
 
         ranking = []
-        for posicion, (score, idx) in enumerate(zip(distancias[0], indices[0]), start=1):
+        for posicion, (score, idx) in enumerate(
+            zip(distancias[0], indices[0]), start=1
+        ):
             if idx == -1:  # FAISS devuelve -1 cuando hay menos de top_k resultados
                 continue
-            ranking.append({"rank": posicion, "score": float(score), **self.metadatos[idx]})
+            ranking.append(
+                {"rank": posicion, "score": float(score), **self.metadatos[idx]}
+            )
         return ranking
 
     # ---------- Persistencia ----------
@@ -120,12 +122,16 @@ class BaseDatosVectorial:
     def guardar(self, ruta_directorio: str = "vector_store"):
         """Guarda el índice FAISS y los metadatos asociados en disco."""
         if self.indice is None:
-            raise ValueError("No hay índice para guardar. Ejecuta indexar_corpus() primero.")
+            raise ValueError(
+                "No hay índice para guardar. Ejecuta indexar_corpus() primero."
+            )
         os.makedirs(ruta_directorio, exist_ok=True)
         faiss.write_index(self.indice, os.path.join(ruta_directorio, "indice.faiss"))
         with open(os.path.join(ruta_directorio, "metadatos.pkl"), "wb") as f:
             pickle.dump(self.metadatos, f)
-        print(f"Base vectorial guardada en '{ruta_directorio}/' (indice.faiss + metadatos.pkl).")
+        print(
+            f"Base vectorial guardada en '{ruta_directorio}/' (indice.faiss + metadatos.pkl)."
+        )
 
     def cargar(self, ruta_directorio: str = "vector_store"):
         """Carga un índice FAISS y sus metadatos previamente guardados."""
@@ -135,7 +141,9 @@ class BaseDatosVectorial:
         with open(os.path.join(ruta_directorio, "metadatos.pkl"), "rb") as f:
             self.metadatos = pickle.load(f)
         self.dimension = self.indice.d
-        print(f"Base vectorial cargada: {self.indice.ntotal} documentos, dimensión {self.dimension}.")
+        print(
+            f"Base vectorial cargada: {self.indice.ntotal} documentos, dimensión {self.dimension}."
+        )
 
     def __len__(self):
         return 0 if self.indice is None else self.indice.ntotal
@@ -163,4 +171,6 @@ if __name__ == "__main__":
 
     print(f"\nTop-5 resultados para: '{consulta}'")
     for r in ranking:
-        print(f"  #{r['rank']}  score={r['score']:.3f}  {r['product_id']}  {r['texto'][:60]}")
+        print(
+            f"  #{r['rank']}  score={r['score']:.3f}  {r['product_id']}  {r['texto'][:60]}"
+        )
