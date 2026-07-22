@@ -6,7 +6,7 @@ Responsabilidades:
   - Refinar el ranking inicial obtenido por búsqueda vectorial (FAISS + CLIP)
     usando un modelo cross-encoder más preciso.
   - Contiene la clase ReRanker para reordenar candidatos.
-  - Contiene la clase SistemaRAGConReranking (subclase de SistemaRAG) para 
+  - Contiene la clase SistemaRAGConReranking (subclase de SistemaRAG) para
     integrarse al RAG sin modificar el archivo sistema_rag.py original.
 """
 
@@ -46,9 +46,7 @@ class ReRanker:
         pares = [(consulta, c["texto"]) for c in candidatos]
         scores = self.modelo.predict(pares)
 
-        ranking = sorted(
-            zip(scores, candidatos), key=lambda x: x[0], reverse=True
-        )
+        ranking = sorted(zip(scores, candidatos), key=lambda x: x[0], reverse=True)
 
         if top_k is not None:
             ranking = ranking[:top_k]
@@ -76,7 +74,7 @@ class SistemaRAGConReranking(SistemaRAG):
     ):
         """
         Subclase de SistemaRAG que implementa Re-ranking.
-        Hereda todo el comportamiento del RAG original, pero añade soporte 
+        Hereda todo el comportamiento del RAG original, pero añade soporte
         para refinar la búsqueda antes de enviar el contexto al LLM.
         """
         # Inicializamos la clase base original
@@ -84,7 +82,7 @@ class SistemaRAGConReranking(SistemaRAG):
             constructor_embeddings=constructor_embeddings,
             base_datos_vectorial=base_datos_vectorial,
             api_key=api_key,
-            modelo_llm=modelo_llm
+            modelo_llm=modelo_llm,
         )
         self.reranker = reranker
         self.factor_candidatos = factor_candidatos
@@ -95,15 +93,17 @@ class SistemaRAGConReranking(SistemaRAG):
         Recupera factor_candidatos * top_k de FAISS y luego aplica Re-ranking.
         """
         emb_consulta = self.constructor.generar_embedding_consulta(consulta)
-        
+
         if self.reranker is not None:
             # Recuperamos más candidatos de FAISS para tener de dónde re-ordenar
             n_candidatos = top_k * self.factor_candidatos
-            candidatos = self.bd_vectorial.recuperar_top_k(emb_consulta, top_k=n_candidatos)
+            candidatos = self.bd_vectorial.recuperar_top_k(
+                emb_consulta, top_k=n_candidatos
+            )
             # Aplicamos re-ranking con el cross-encoder
             evidencias = self.reranker.rerank(consulta, candidatos, top_k=top_k)
         else:
             # Fallback al comportamiento original si no hay reranker
             evidencias = self.bd_vectorial.recuperar_top_k(emb_consulta, top_k=top_k)
-            
+
         return evidencias
