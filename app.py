@@ -84,7 +84,14 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 def cargar_recursos_base():
     constructor = ConstructorEmbeddings()
     bd_vectorial = BaseDatosVectorial()
-    bd_vectorial.cargar("vector_store")
+
+    # Construir la ruta absoluta de manera dinámica
+    ruta_base = os.path.dirname(os.path.abspath(__file__))
+    ruta_vector_store = os.path.join(ruta_base, "vector_store")
+
+    # Cargar usando la ruta completa (ej: /mount/src/tu-repo/vector_store)
+    bd_vectorial.cargar(ruta_vector_store)
+
     return constructor, bd_vectorial
 
 
