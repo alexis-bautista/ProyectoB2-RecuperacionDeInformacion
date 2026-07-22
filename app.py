@@ -200,7 +200,7 @@ class SistemaCompuesto(SistemaRAG):
         usar_memoria,
         memoria,
     ):
-        super().__init__(constructor, bd_vectorial, api_key, "gemini-2.5-flash")
+        super().__init__(constructor, bd_vectorial, api_key, "gemini-3.5-flash-lite")
         self.reranker = reranker
         self.factor_candidatos = factor_candidatos
         self.usar_expansion = usar_expansion
