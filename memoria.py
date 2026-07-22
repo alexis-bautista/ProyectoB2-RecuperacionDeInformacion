@@ -45,7 +45,7 @@ class SistemaRAGConMemoria(SistemaRAG):
         constructor_embeddings,
         base_datos_vectorial,
         api_key: Optional[str] = None,
-        modelo_llm: str = "gemini-2.5-flash",
+        modelo_llm: str = "gemini-3.1-flash-lite",
         memoria: Optional[ConversationalMemory] = None,
     ):
         """
@@ -55,7 +55,7 @@ class SistemaRAGConMemoria(SistemaRAG):
             constructor_embeddings=constructor_embeddings,
             base_datos_vectorial=base_datos_vectorial,
             api_key=api_key,
-            modelo_llm=modelo_llm
+            modelo_llm=modelo_llm,
         )
         self.memoria = memoria or ConversationalMemory()
 
@@ -65,7 +65,7 @@ class SistemaRAGConMemoria(SistemaRAG):
         Devuelve una consulta de búsqueda stand-alone en inglés lista para FAISS.
         """
         historial_str = self.memoria.obtener_historial_formateado()
-        
+
         # Si el historial está vacío, no hay nada que condensar, pero la traducimos a inglés
         if not historial_str:
             prompt_traduccion = f"Translate the following search query to English. Output ONLY the translation: {consulta_actual}"
@@ -89,12 +89,14 @@ Standalone Search Query (English):"""
         if self.modelo_llm:
             try:
                 res = self.modelo_llm.generate_content(prompt)
-                consulta_condensada = res.text.strip().replace('"', '').replace("'", "")
-                print(f"[Memoria] Consulta reformulada: '{consulta_condensada}' (Original: '{consulta_actual}')")
+                consulta_condensada = res.text.strip().replace('"', "").replace("'", "")
+                print(
+                    f"[Memoria] Consulta reformulada: '{consulta_condensada}' (Original: '{consulta_actual}')"
+                )
                 return consulta_condensada
             except Exception as e:
                 print(f"Error al reformular consulta con memoria: {e}")
-                
+
         return consulta_actual
 
     def responder_consulta(self, consulta: str, top_k: int = 5) -> Dict:

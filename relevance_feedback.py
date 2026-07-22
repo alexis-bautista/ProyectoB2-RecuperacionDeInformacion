@@ -6,7 +6,7 @@ Responsabilidades:
   - Registrar las calificaciones ("Me gusta" / "No me gusta") de los usuarios para documentos específicos.
   - Ajustar vectorialmente las futuras consultas del usuario (Query Drift / Query Shift):
     acercando la consulta a los documentos relevantes (liked) y alejándola de los irrelevantes (disliked).
-  - Implementar la clase SistemaRAGConRocchio (subclase de SistemaRAG) para 
+  - Implementar la clase SistemaRAGConRocchio (subclase de SistemaRAG) para
     integrar este comportamiento de forma limpia y transparente sin modificar los archivos base.
 """
 
@@ -19,13 +19,13 @@ class RelevanceFeedbackSystem:
     def __init__(self, alpha: float = 1.0, beta: float = 0.75, gamma: float = 0.25):
         """
         Inicializa el sistema de feedback con los pesos del Algoritmo de Rocchio.
-        
+
         Formula: q_new = alpha * q_old + beta * avg(D_relevant) - gamma * avg(D_non_relevant)
         """
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
-        
+
         # Almacenamiento en memoria del feedback del usuario
         # Estructura: {consulta: {"likes": [doc_ids], "dislikes": [doc_ids]}}
         self.historial_feedback: Dict[str, Dict[str, List[str]]] = {}
@@ -36,29 +36,43 @@ class RelevanceFeedbackSystem:
         """
         consulta_normalizada = consulta.strip().lower()
         if consulta_normalizada not in self.historial_feedback:
-            self.historial_feedback[consulta_normalizada] = {"likes": [], "dislikes": []}
-            
+            self.historial_feedback[consulta_normalizada] = {
+                "likes": [],
+                "dislikes": [],
+            }
+
         lista_destino = "likes" if es_relevante else "dislikes"
         lista_opuesta = "dislikes" if es_relevante else "likes"
-        
+
         # Evitar duplicados
-        if product_id not in self.historial_feedback[consulta_normalizada][lista_destino]:
-            self.historial_feedback[consulta_normalizada][lista_destino].append(product_id)
-            
+        if (
+            product_id
+            not in self.historial_feedback[consulta_normalizada][lista_destino]
+        ):
+            self.historial_feedback[consulta_normalizada][lista_destino].append(
+                product_id
+            )
+
         # Remover de la lista opuesta si existía previamente
         if product_id in self.historial_feedback[consulta_normalizada][lista_opuesta]:
-            self.historial_feedback[consulta_normalizada][lista_opuesta].remove(product_id)
+            self.historial_feedback[consulta_normalizada][lista_opuesta].remove(
+                product_id
+            )
 
-        print(f"[Feedback] Registrado {'LIKE' if es_relevante else 'DISLIKE'} para {product_id} bajo la consulta '{consulta_normalizada}'")
+        print(
+            f"[Feedback] Registrado {'LIKE' if es_relevante else 'DISLIKE'} para {product_id} bajo la consulta '{consulta_normalizada}'"
+        )
 
-    def obtener_vectores_documentos(self, doc_ids: List[str], bd_vectorial) -> List[np.ndarray]:
+    def obtener_vectores_documentos(
+        self, doc_ids: List[str], bd_vectorial
+    ) -> List[np.ndarray]:
         """
         Recupera los embeddings vectoriales originales de los documentos calificados.
         """
         vectores = []
         if not bd_vectorial.indice:
             return vectores
-            
+
         for doc_id in doc_ids:
             # Buscar el índice físico del documento en los metadatos de la BD vectorial
             for idx, meta in enumerate(bd_vectorial.metadatos):
@@ -69,13 +83,15 @@ class RelevanceFeedbackSystem:
                     break
         return vectores
 
-    def ajustar_vector_consulta(self, consulta: str, vector_original: np.ndarray, bd_vectorial) -> np.ndarray:
+    def ajustar_vector_consulta(
+        self, consulta: str, vector_original: np.ndarray, bd_vectorial
+    ) -> np.ndarray:
         """
         Aplica la fórmula de Rocchio para desplazar el vector de consulta original.
         """
         consulta_normalizada = consulta.strip().lower()
         feedback = self.historial_feedback.get(consulta_normalizada)
-        
+
         # Si no hay feedback para esta consulta, devolvemos el vector original sin cambios
         if not feedback or (not feedback["likes"] and not feedback["dislikes"]):
             return vector_original
@@ -84,14 +100,18 @@ class RelevanceFeedbackSystem:
 
         # Componente Positivo (Likes)
         if feedback["likes"]:
-            vecs_likes = self.obtener_vectores_documentos(feedback["likes"], bd_vectorial)
+            vecs_likes = self.obtener_vectores_documentos(
+                feedback["likes"], bd_vectorial
+            )
             if vecs_likes:
                 avg_likes = np.mean(vecs_likes, axis=0)
                 q_new = q_new + self.beta * avg_likes
 
         # Componente Negativo (Dislikes)
         if feedback["dislikes"]:
-            vecs_dislikes = self.obtener_vectores_documentos(feedback["dislikes"], bd_vectorial)
+            vecs_dislikes = self.obtener_vectores_documentos(
+                feedback["dislikes"], bd_vectorial
+            )
             if vecs_dislikes:
                 avg_dislikes = np.mean(vecs_dislikes, axis=0)
                 q_new = q_new - self.gamma * avg_dislikes
@@ -110,7 +130,7 @@ class SistemaRAGConRocchio(SistemaRAG):
         constructor_embeddings,
         base_datos_vectorial,
         api_key: Optional[str] = None,
-        modelo_llm: str = "gemini-2.5-flash",
+        modelo_llm: str = "gemini-3.1-flash-lite",
         feedback_system: Optional[RelevanceFeedbackSystem] = None,
     ):
         """
@@ -120,21 +140,21 @@ class SistemaRAGConRocchio(SistemaRAG):
             constructor_embeddings=constructor_embeddings,
             base_datos_vectorial=base_datos_vectorial,
             api_key=api_key,
-            modelo_llm=modelo_llm
+            modelo_llm=modelo_llm,
         )
         self.feedback_system = feedback_system or RelevanceFeedbackSystem()
 
     def recuperar_evidencias(self, consulta: str, top_k: int = 5) -> List[Dict]:
         """
-        Sobrescribe la recuperación. Genera el embedding, lo ajusta usando Rocchio 
+        Sobrescribe la recuperación. Genera el embedding, lo ajusta usando Rocchio
         si hay feedback registrado, y recupera de FAISS.
         """
         emb_original = self.constructor.generar_embedding_consulta(consulta)
-        
+
         # Ajustamos el vector de consulta según las calificaciones previas
         emb_ajustado = self.feedback_system.ajustar_vector_consulta(
             consulta, emb_original, self.bd_vectorial
         )
-        
+
         evidencias = self.bd_vectorial.recuperar_top_k(emb_ajustado, top_k=top_k)
         return evidencias

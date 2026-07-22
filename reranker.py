@@ -68,7 +68,7 @@ class SistemaRAGConReranking(SistemaRAG):
         constructor_embeddings,
         base_datos_vectorial,
         api_key: Optional[str] = None,
-        modelo_llm: str = "gemini-2.5-flash",
+        modelo_llm: str = "gemini-3.1-flash-lite",
         reranker: Optional[ReRanker] = None,
         factor_candidatos: int = 4,
     ):

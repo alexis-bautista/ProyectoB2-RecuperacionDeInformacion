@@ -5,9 +5,9 @@ Módulo de Expansión de Consultas (Query Expansion) para el sistema RAG.
 Responsabilidades:
   - Expandir o reformular la consulta inicial del usuario utilizando un LLM (Gemini)
     para generar variaciones, sinónimos y términos técnicos (en inglés, ya que el corpus está en inglés).
-  - Realizar una búsqueda "Multi-Query": recuperar candidatos en la base vectorial para cada 
+  - Realizar una búsqueda "Multi-Query": recuperar candidatos en la base vectorial para cada
     variación generada, fusionar los resultados, eliminar duplicados y ordenar por relevancia.
-  - Implementar la clase SistemaRAGConExpansion (subclase de SistemaRAG) para 
+  - Implementar la clase SistemaRAGConExpansion (subclase de SistemaRAG) para
     integrar esta funcionalidad de forma limpia y transparente sin modificar los archivos originales.
 """
 
@@ -19,7 +19,9 @@ from sistema_rag import SistemaRAG
 
 
 class QueryExpander:
-    def __init__(self, api_key: Optional[str] = None, modelo_llm: str = "gemini-2.5-flash"):
+    def __init__(
+        self, api_key: Optional[str] = None, modelo_llm: str = "gemini-3.1-flash-lite"
+    ):
         """
         Inicializa el expansor de consultas mediante Gemini.
         """
@@ -31,7 +33,9 @@ class QueryExpander:
             genai.configure(api_key=self.api_key)
             self.modelo = genai.GenerativeModel(self.modelo_nombre)
         else:
-            print("Aviso: No hay GEMINI_API_KEY para Query Expansion. Se usarán reglas básicas.")
+            print(
+                "Aviso: No hay GEMINI_API_KEY para Query Expansion. Se usarán reglas básicas."
+            )
 
     def expandir_consulta(self, consulta: str) -> List[str]:
         """
@@ -61,8 +65,10 @@ Alternative Queries:"""
             respuesta = self.modelo.generate_content(prompt)
             lineas = respuesta.text.strip().split("\n")
             for linea in lineas:
-                linea_limpia = re.sub(r"^\d+[\.\-\)]\s*", "", linea).strip() # Limpia numeración
-                linea_limpia = linea_limpia.replace('"', '').replace("'", "")
+                linea_limpia = re.sub(
+                    r"^\d+[\.\-\)]\s*", "", linea
+                ).strip()  # Limpia numeración
+                linea_limpia = linea_limpia.replace('"', "").replace("'", "")
                 if linea_limpia and len(linea_limpia) > 2:
                     consultas.append(linea_limpia)
         except Exception as e:
@@ -78,7 +84,7 @@ class SistemaRAGConExpansion(SistemaRAG):
         constructor_embeddings,
         base_datos_vectorial,
         api_key: Optional[str] = None,
-        modelo_llm: str = "gemini-2.5-flash",
+        modelo_llm: str = "gemini-3.1-flash-lite",
         expansor: Optional[QueryExpander] = None,
     ):
         """
@@ -88,14 +94,16 @@ class SistemaRAGConExpansion(SistemaRAG):
             constructor_embeddings=constructor_embeddings,
             base_datos_vectorial=base_datos_vectorial,
             api_key=api_key,
-            modelo_llm=modelo_llm
+            modelo_llm=modelo_llm,
         )
-        self.expansor = expansor or QueryExpander(api_key=self.api_key, modelo_llm=self.modelo_llm_nombre)
+        self.expansor = expansor or QueryExpander(
+            api_key=self.api_key, modelo_llm=self.modelo_llm_nombre
+        )
 
     def recuperar_evidencias(self, consulta: str, top_k: int = 5) -> List[Dict]:
         """
         Sobrescribe recuperar_evidencias de la clase base.
-        Expande la consulta, busca en la base de datos para cada variación, 
+        Expande la consulta, busca en la base de datos para cada variación,
         fusiona los resultados (deduplicando) y devuelve el top_k global.
         """
         # 1. Obtener las consultas expandidas
@@ -108,7 +116,7 @@ class SistemaRAGConExpansion(SistemaRAG):
         for q in consultas_expandidas:
             emb_q = self.constructor.generar_embedding_consulta(q)
             resultados_q = self.bd_vectorial.recuperar_top_k(emb_q, top_k=top_k)
-            
+
             for res in resultados_q:
                 prod_id = res["product_id"]
                 # Si el producto ya fue recuperado por otra consulta, nos quedamos con el mejor score

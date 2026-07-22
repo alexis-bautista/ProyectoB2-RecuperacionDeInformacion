@@ -25,7 +25,7 @@ class SistemaRAG:
         constructor_embeddings,
         base_datos_vectorial,
         api_key: Optional[str] = None,
-        modelo_llm: str = "gemini-2.5-flash",
+        modelo_llm: str = "gemini-3.1-flash-lite",
     ):
         """
         Inicializa el pipeline RAG.
